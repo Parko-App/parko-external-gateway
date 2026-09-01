@@ -1,3 +1,6 @@
+server:
+  port: ${SERVER_PORT:8085}
+
 spring:
   application:
     name: external.gateway
@@ -10,3 +13,9 @@ spring:
 mercadopago:
   access-token: ${MERCADOPAGO_ACCESS_TOKEN}
   base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:placeholder}
+  notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
+
+ngrok:
+  enabled: ${NGROK_ENABLED:true}
+  domain: ${NGROK_DOMAIN:parko.ngrok-free.dev}
