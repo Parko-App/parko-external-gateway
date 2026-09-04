@@ -5,6 +5,7 @@ import com.parko.external.gateway.config.RabbitConfig;
 import com.parko.external.gateway.dto.mercadopago.MercadoPagoNotification;
 import com.parko.external.gateway.dto.mercadopago.PaymentResponse;
 import com.parko.external.gateway.event.PaymentConfirmedMessage;
+import com.parko.external.gateway.event.PaymentFailedMessage;
 import feign.FeignException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -78,6 +79,38 @@ class PaymentNotificationServiceTest {
                 eq(RabbitConfig.BALANCE_EXCHANGE),
                 eq(RabbitConfig.PAYMENT_CONFIRMED_ROUTING_KEY),
                 eq(new PaymentConfirmedMessage(operationId, userId, amount))
+        );
+    }
+
+    @Test
+    void handle_publishesFailureEvent_whenPaymentRejected() {
+        UUID operationId = UUID.randomUUID();
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456"))
+                .thenReturn(new PaymentResponse(999L, "rejected", operationId.toString(), BigDecimal.TEN, Map.of()));
+
+        service.handle(notification, "123456");
+
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitConfig.BALANCE_EXCHANGE),
+                eq(RabbitConfig.PAYMENT_FAILED_ROUTING_KEY),
+                eq(new PaymentFailedMessage(operationId, "rejected"))
+        );
+    }
+
+    @Test
+    void handle_publishesFailureEvent_whenPaymentCancelled() {
+        UUID operationId = UUID.randomUUID();
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456"))
+                .thenReturn(new PaymentResponse(999L, "cancelled", operationId.toString(), BigDecimal.TEN, Map.of()));
+
+        service.handle(notification, "123456");
+
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitConfig.BALANCE_EXCHANGE),
+                eq(RabbitConfig.PAYMENT_FAILED_ROUTING_KEY),
+                eq(new PaymentFailedMessage(operationId, "cancelled"))
         );
     }
 
