@@ -36,6 +36,17 @@ public class RabbitConfig {
     public static final String PAYMENT_FAILED_DLQ = "balance.payment-failed.dlq";
     public static final String TOPUP_PREFERENCE_CREATED_DLQ = "balance.topup-preference-created.dlq";
 
+    public static final String ACCESS_EXCHANGE = "access.exchange";
+    public static final String ACCESS_DEAD_LETTER_EXCHANGE = "access.dlx.exchange";
+
+    public static final String ACCESS_PAYMENT_CONFIRMED_QUEUE = "access.payment-confirmed.queue";
+    public static final String ACCESS_PAYMENT_CONFIRMED_ROUTING_KEY = "access.payment.confirmed";
+    public static final String ACCESS_PAYMENT_CONFIRMED_DLQ = "access.payment-confirmed.dlq";
+
+    public static final String ACCESS_PAYMENT_FAILED_QUEUE = "access.payment-failed.queue";
+    public static final String ACCESS_PAYMENT_FAILED_ROUTING_KEY = "access.payment.failed";
+    public static final String ACCESS_PAYMENT_FAILED_DLQ = "access.payment-failed.dlq";
+
     public static final long MESSAGE_TTL_MS = 86_400_000L;
 
     @Bean
@@ -46,6 +57,16 @@ public class RabbitConfig {
     @Bean
     public DirectExchange deadLetterExchange() {
         return new DirectExchange(DEAD_LETTER_EXCHANGE);
+    }
+
+    @Bean
+    public DirectExchange accessExchange() {
+        return new DirectExchange(ACCESS_EXCHANGE);
+    }
+
+    @Bean
+    public DirectExchange accessDeadLetterExchange() {
+        return new DirectExchange(ACCESS_DEAD_LETTER_EXCHANGE);
     }
 
     @Bean
@@ -105,6 +126,34 @@ public class RabbitConfig {
     }
 
     @Bean
+    public Queue accessPaymentConfirmedQueue() {
+        return QueueBuilder.durable(ACCESS_PAYMENT_CONFIRMED_QUEUE)
+                .withArgument("x-dead-letter-exchange", ACCESS_DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", ACCESS_PAYMENT_CONFIRMED_DLQ)
+                .withArgument("x-message-ttl", MESSAGE_TTL_MS)
+                .build();
+    }
+
+    @Bean
+    public Queue accessPaymentFailedQueue() {
+        return QueueBuilder.durable(ACCESS_PAYMENT_FAILED_QUEUE)
+                .withArgument("x-dead-letter-exchange", ACCESS_DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", ACCESS_PAYMENT_FAILED_DLQ)
+                .withArgument("x-message-ttl", MESSAGE_TTL_MS)
+                .build();
+    }
+
+    @Bean
+    public Queue accessPaymentConfirmedDeadLetterQueue() {
+        return new Queue(ACCESS_PAYMENT_CONFIRMED_DLQ, true);
+    }
+
+    @Bean
+    public Queue accessPaymentFailedDeadLetterQueue() {
+        return new Queue(ACCESS_PAYMENT_FAILED_DLQ, true);
+    }
+
+    @Bean
     public Binding topUpBinding(Queue topUpQueue, DirectExchange balanceExchange) {
         return BindingBuilder.bind(topUpQueue).to(balanceExchange).with(TOPUP_ROUTING_KEY);
     }
@@ -142,6 +191,26 @@ public class RabbitConfig {
     @Bean
     public Binding paymentFailedDeadLetterBinding(Queue paymentFailedDeadLetterQueue, DirectExchange deadLetterExchange) {
         return BindingBuilder.bind(paymentFailedDeadLetterQueue).to(deadLetterExchange).with(PAYMENT_FAILED_DLQ);
+    }
+
+    @Bean
+    public Binding accessPaymentConfirmedBinding(Queue accessPaymentConfirmedQueue, DirectExchange accessExchange) {
+        return BindingBuilder.bind(accessPaymentConfirmedQueue).to(accessExchange).with(ACCESS_PAYMENT_CONFIRMED_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding accessPaymentFailedBinding(Queue accessPaymentFailedQueue, DirectExchange accessExchange) {
+        return BindingBuilder.bind(accessPaymentFailedQueue).to(accessExchange).with(ACCESS_PAYMENT_FAILED_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding accessPaymentConfirmedDeadLetterBinding(Queue accessPaymentConfirmedDeadLetterQueue, DirectExchange accessDeadLetterExchange) {
+        return BindingBuilder.bind(accessPaymentConfirmedDeadLetterQueue).to(accessDeadLetterExchange).with(ACCESS_PAYMENT_CONFIRMED_DLQ);
+    }
+
+    @Bean
+    public Binding accessPaymentFailedDeadLetterBinding(Queue accessPaymentFailedDeadLetterQueue, DirectExchange accessDeadLetterExchange) {
+        return BindingBuilder.bind(accessPaymentFailedDeadLetterQueue).to(accessDeadLetterExchange).with(ACCESS_PAYMENT_FAILED_DLQ);
     }
 
     @Bean

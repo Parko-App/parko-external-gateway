@@ -1,6 +1,7 @@
 package com.parko.external.gateway.service;
 
 import com.parko.external.gateway.client.MercadoPagoClient;
+import com.parko.external.gateway.dto.TicketPaymentRequest;
 import com.parko.external.gateway.dto.mercadopago.PreferenceRequest;
 import com.parko.external.gateway.dto.mercadopago.PreferenceResponse;
 import com.parko.external.gateway.event.TopUpMessage;
@@ -56,6 +57,27 @@ class MercadoPagoServiceTest {
         assertThat(sentRequest.items().get(0).unitPrice()).isEqualByComparingTo(amount);
         assertThat(sentRequest.metadata()).containsEntry("user_id", userId.toString());
         assertThat(sentRequest.statementDescriptor()).isEqualTo("PARKOAPP");
+    }
+
+    @Test
+    void createTicketPaymentPreference_buildsRequestWithTicketDomain() {
+        UUID parkingSessionId = UUID.randomUUID();
+        BigDecimal amount = BigDecimal.valueOf(3000);
+        when(mercadoPagoClient.createPreference(any(PreferenceRequest.class)))
+                .thenReturn(new PreferenceResponse("pref-2", "https://mp.com/init-ticket", "https://mp.com/sandbox-ticket"));
+
+        PreferenceResponse response = service.createTicketPaymentPreference(new TicketPaymentRequest(parkingSessionId, amount));
+
+        assertThat(response.initPoint()).isEqualTo("https://mp.com/init-ticket");
+
+        ArgumentCaptor<PreferenceRequest> captor = ArgumentCaptor.forClass(PreferenceRequest.class);
+        verify(mercadoPagoClient).createPreference(captor.capture());
+        PreferenceRequest sentRequest = captor.getValue();
+        assertThat(sentRequest.externalReference()).isEqualTo(parkingSessionId.toString());
+        assertThat(sentRequest.items()).hasSize(1);
+        assertThat(sentRequest.items().get(0).unitPrice()).isEqualByComparingTo(amount);
+        assertThat(sentRequest.metadata()).containsEntry("domain", "ticket");
+        assertThat(sentRequest.metadata()).doesNotContainKey("user_id");
     }
 
     @Test
