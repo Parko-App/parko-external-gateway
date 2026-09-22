@@ -1,6 +1,7 @@
 package com.parko.external.gateway.service;
 
 import com.parko.external.gateway.client.MercadoPagoClient;
+import com.parko.external.gateway.dto.TicketPaymentRequest;
 import com.parko.external.gateway.dto.mercadopago.PreferenceItem;
 import com.parko.external.gateway.dto.mercadopago.PreferenceRequest;
 import com.parko.external.gateway.dto.mercadopago.PreferenceResponse;
@@ -16,6 +17,8 @@ public class MercadoPagoService {
 
     private static final String CURRENCY_ID = "ARS";
     private static final String STATEMENT_DESCRIPTOR = "PARKOAPP";
+    private static final String BALANCE_DOMAIN = "balance";
+    private static final String TICKET_DOMAIN = "ticket";
 
     private final MercadoPagoClient mercadoPagoClient;
 
@@ -38,7 +41,24 @@ public class MercadoPagoService {
                 message.operationId().toString(),
                 notificationUrl == null || notificationUrl.isBlank() ? null : notificationUrl,
                 STATEMENT_DESCRIPTOR,
-                Map.of("user_id", message.userId().toString())
+                Map.of("user_id", message.userId().toString(), "domain", BALANCE_DOMAIN)
+        );
+        return mercadoPagoClient.createPreference(request);
+    }
+
+    public PreferenceResponse createTicketPaymentPreference(TicketPaymentRequest ticketPaymentRequest) {
+        PreferenceItem item = new PreferenceItem(
+                "Ticket de estacionamiento - Visitante",
+                1,
+                ticketPaymentRequest.amount(),
+                CURRENCY_ID
+        );
+        PreferenceRequest request = new PreferenceRequest(
+                List.of(item),
+                ticketPaymentRequest.parkingSessionId().toString(),
+                notificationUrl == null || notificationUrl.isBlank() ? null : notificationUrl,
+                STATEMENT_DESCRIPTOR,
+                Map.of("domain", TICKET_DOMAIN)
         );
         return mercadoPagoClient.createPreference(request);
     }

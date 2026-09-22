@@ -6,6 +6,8 @@ import com.parko.external.gateway.dto.mercadopago.MercadoPagoNotification;
 import com.parko.external.gateway.dto.mercadopago.PaymentResponse;
 import com.parko.external.gateway.event.PaymentConfirmedMessage;
 import com.parko.external.gateway.event.PaymentFailedMessage;
+import com.parko.external.gateway.event.TicketPaymentConfirmedMessage;
+import com.parko.external.gateway.event.TicketPaymentFailedMessage;
 import feign.FeignException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -112,6 +114,43 @@ class PaymentNotificationServiceTest {
                 eq(RabbitConfig.PAYMENT_FAILED_ROUTING_KEY),
                 eq(new PaymentFailedMessage(operationId, "cancelled"))
         );
+    }
+
+    @Test
+    void handle_publishesTicketPaidEvent_whenPaymentApprovedForTicketDomain() {
+        UUID parkingSessionId = UUID.randomUUID();
+        BigDecimal amount = BigDecimal.valueOf(3000);
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456")).thenReturn(new PaymentResponse(
+                999L, "approved", parkingSessionId.toString(), amount, Map.of("domain", "ticket")
+        ));
+
+        service.handle(notification, "123456");
+
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitConfig.ACCESS_EXCHANGE),
+                eq(RabbitConfig.ACCESS_PAYMENT_CONFIRMED_ROUTING_KEY),
+                eq(new TicketPaymentConfirmedMessage(parkingSessionId, amount))
+        );
+        verify(rabbitTemplate, never()).convertAndSend(eq(RabbitConfig.BALANCE_EXCHANGE), anyString(), any(Object.class));
+    }
+
+    @Test
+    void handle_publishesTicketFailedEvent_whenPaymentRejectedForTicketDomain() {
+        UUID parkingSessionId = UUID.randomUUID();
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456")).thenReturn(new PaymentResponse(
+                999L, "rejected", parkingSessionId.toString(), BigDecimal.TEN, Map.of("domain", "ticket")
+        ));
+
+        service.handle(notification, "123456");
+
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitConfig.ACCESS_EXCHANGE),
+                eq(RabbitConfig.ACCESS_PAYMENT_FAILED_ROUTING_KEY),
+                eq(new TicketPaymentFailedMessage(parkingSessionId, "rejected"))
+        );
+        verify(rabbitTemplate, never()).convertAndSend(eq(RabbitConfig.BALANCE_EXCHANGE), anyString(), any(Object.class));
     }
 
     @Test
