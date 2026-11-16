@@ -58,7 +58,6 @@ public class PaymentNotificationService {
             return;
         }
 
-        // Mercado Pago reenvia webhooks y uno firmado se puede reenviar: cada pago/estado terminal se procesa una sola vez.
         String paymentKey = payment.id() != null ? String.valueOf(payment.id()) : dataId;
         if (!paymentDeduplicator.markIfFirst(paymentKey, payment.status())) {
             log.info("Pago {} (status={}) ya fue procesado, se ignora la notificacion duplicada", paymentKey, payment.status());
@@ -79,7 +78,6 @@ public class PaymentNotificationService {
                 handleBalanceFailed(payment, dataId);
             }
         } catch (RuntimeException e) {
-            // Si no se pudo publicar, se libera la marca para que el reintento de Mercado Pago vuelva a procesarlo.
             paymentDeduplicator.release(paymentKey, payment.status());
             throw e;
         }

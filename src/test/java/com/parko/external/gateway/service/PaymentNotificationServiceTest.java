@@ -51,7 +51,6 @@ class PaymentNotificationServiceTest {
     @BeforeEach
     void setUp() {
         service = new PaymentNotificationService(mercadoPagoClient, rabbitTemplate, paymentDeduplicator);
-        // Por defecto el pago se reclama como "primera vez"; los tests de duplicados lo pisan.
         lenient().when(paymentDeduplicator.markIfFirst(anyString(), anyString())).thenReturn(true);
     }
 

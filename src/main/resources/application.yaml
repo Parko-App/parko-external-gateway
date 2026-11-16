@@ -22,12 +22,9 @@ spring:
 mercadopago:
   access-token: ${MERCADOPAGO_ACCESS_TOKEN}
   base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
-  # Sin valor por defecto: si falta o esta vacio el servicio no arranca (ver MercadoPagoWebhookSignatureValidator).
   webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
   notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
-  # Cuanto tiempo se recuerda que un pago ya fue procesado (evita acreditar dos veces ante reenvios del webhook).
   webhook-dedup-ttl: ${MERCADOPAGO_WEBHOOK_DEDUP_TTL:P7D}
-  # Antiguedad maxima aceptada del ts de la firma del webhook (PT0S desactiva el control).
   webhook-max-age: ${MERCADOPAGO_WEBHOOK_MAX_AGE:PT24H}
 
 ngrok:

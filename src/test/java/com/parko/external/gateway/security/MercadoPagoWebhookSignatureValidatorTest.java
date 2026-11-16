@@ -70,8 +70,6 @@ class MercadoPagoWebhookSignatureValidatorTest {
         assertThat(validator.isValid("not-a-valid-signature", "req-1", "123456")).isFalse();
     }
 
-    // --- H6: el secret no puede faltar, estar vacio ni ser el valor por defecto conocido ---
-
     private void withSecret(String secret) {
         ReflectionTestUtils.setField(validator, "webhookSecret", secret);
     }
@@ -100,8 +98,6 @@ class MercadoPagoWebhookSignatureValidatorTest {
         assertThat(MercadoPagoWebhookSignatureValidator.class.getDeclaredMethod("validateConfiguration")
                 .isAnnotationPresent(jakarta.annotation.PostConstruct.class)).isTrue();
     }
-
-    // --- ventana de frescura del ts (H8) ---
 
     private static final Instant NOW = Instant.parse("2026-11-15T20:00:00Z");
 
