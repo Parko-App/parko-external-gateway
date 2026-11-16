@@ -20,10 +20,15 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.amqp.AmqpException;
+
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,11 +43,15 @@ class PaymentNotificationServiceTest {
     @Mock
     private RabbitTemplate rabbitTemplate;
 
+    @Mock
+    private PaymentDeduplicator paymentDeduplicator;
+
     private PaymentNotificationService service;
 
     @BeforeEach
     void setUp() {
-        service = new PaymentNotificationService(mercadoPagoClient, rabbitTemplate);
+        service = new PaymentNotificationService(mercadoPagoClient, rabbitTemplate, paymentDeduplicator);
+        lenient().when(paymentDeduplicator.markIfFirst(anyString(), anyString())).thenReturn(true);
     }
 
     @Test
@@ -151,6 +160,80 @@ class PaymentNotificationServiceTest {
                 eq(new TicketPaymentFailedMessage(parkingSessionId, "rejected"))
         );
         verify(rabbitTemplate, never()).convertAndSend(eq(RabbitConfig.BALANCE_EXCHANGE), anyString(), any(Object.class));
+    }
+
+    @Test
+    void handle_claimsThePaymentByIdAndStatus_beforePublishing() {
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456")).thenReturn(new PaymentResponse(
+                999L, "approved", UUID.randomUUID().toString(), BigDecimal.TEN, Map.of("user_id", UUID.randomUUID().toString())
+        ));
+
+        service.handle(notification, "123456");
+
+        verify(paymentDeduplicator).markIfFirst("999", "approved");
+    }
+
+    @Test
+    void handle_doesNotPublishAgain_whenPaymentWasAlreadyProcessed() {
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456")).thenReturn(new PaymentResponse(
+                999L, "approved", UUID.randomUUID().toString(), BigDecimal.TEN, Map.of("user_id", UUID.randomUUID().toString())
+        ));
+        when(paymentDeduplicator.markIfFirst("999", "approved")).thenReturn(false);
+
+        service.handle(notification, "123456");
+
+        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
+    }
+
+    @Test
+    void handle_doesNotPublishAgain_whenRejectedPaymentWasAlreadyProcessed() {
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456"))
+                .thenReturn(new PaymentResponse(999L, "rejected", UUID.randomUUID().toString(), BigDecimal.TEN, Map.of()));
+        when(paymentDeduplicator.markIfFirst("999", "rejected")).thenReturn(false);
+
+        service.handle(notification, "123456");
+
+        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
+    }
+
+    @Test
+    void handle_usesDataIdAsKey_whenPaymentHasNoId() {
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456")).thenReturn(new PaymentResponse(
+                null, "approved", UUID.randomUUID().toString(), BigDecimal.TEN, Map.of("user_id", UUID.randomUUID().toString())
+        ));
+
+        service.handle(notification, "123456");
+
+        verify(paymentDeduplicator).markIfFirst("123456", "approved");
+    }
+
+    @Test
+    void handle_releasesTheClaimAndRethrows_whenPublishingFails() {
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456")).thenReturn(new PaymentResponse(
+                999L, "approved", UUID.randomUUID().toString(), BigDecimal.TEN, Map.of("user_id", UUID.randomUUID().toString())
+        ));
+        doThrow(new AmqpException("rabbit caido")).when(rabbitTemplate)
+                .convertAndSend(anyString(), anyString(), any(Object.class));
+
+        assertThatThrownBy(() -> service.handle(notification, "123456")).isInstanceOf(AmqpException.class);
+
+        verify(paymentDeduplicator).release("999", "approved");
+    }
+
+    @Test
+    void handle_doesNotTouchTheDeduplicator_whenPaymentIsNotTerminal() {
+        MercadoPagoNotification notification = new MercadoPagoNotification("1", "payment.updated", "payment", null);
+        when(mercadoPagoClient.getPayment("123456"))
+                .thenReturn(new PaymentResponse(999L, "pending", UUID.randomUUID().toString(), BigDecimal.TEN, Map.of()));
+
+        service.handle(notification, "123456");
+
+        verify(paymentDeduplicator, never()).markIfFirst(anyString(), anyString());
     }
 
     @Test

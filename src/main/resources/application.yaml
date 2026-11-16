@@ -9,6 +9,10 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:user}
     password: ${RABBITMQ_PASSWORD:password}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   security:
     oauth2:
       resourceserver:
@@ -18,8 +22,10 @@ spring:
 mercadopago:
   access-token: ${MERCADOPAGO_ACCESS_TOKEN}
   base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
-  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:placeholder}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
   notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
+  webhook-dedup-ttl: ${MERCADOPAGO_WEBHOOK_DEDUP_TTL:P7D}
+  webhook-max-age: ${MERCADOPAGO_WEBHOOK_MAX_AGE:PT24H}
 
 ngrok:
   enabled: ${NGROK_ENABLED:true}

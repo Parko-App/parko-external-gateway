@@ -30,10 +30,13 @@ public class PaymentNotificationService {
 
     private final MercadoPagoClient mercadoPagoClient;
     private final RabbitTemplate rabbitTemplate;
+    private final PaymentDeduplicator paymentDeduplicator;
 
-    public PaymentNotificationService(MercadoPagoClient mercadoPagoClient, RabbitTemplate rabbitTemplate) {
+    public PaymentNotificationService(MercadoPagoClient mercadoPagoClient, RabbitTemplate rabbitTemplate,
+                                      PaymentDeduplicator paymentDeduplicator) {
         this.mercadoPagoClient = mercadoPagoClient;
         this.rabbitTemplate = rabbitTemplate;
+        this.paymentDeduplicator = paymentDeduplicator;
     }
 
     public void handle(MercadoPagoNotification notification, String dataId) {
@@ -49,27 +52,35 @@ public class PaymentNotificationService {
             return;
         }
 
-        boolean isTicketPayment = TICKET_DOMAIN.equals(payment.metadata().get(DOMAIN_METADATA_KEY));
-
-        if (APPROVED_STATUS.equals(payment.status())) {
-            if (isTicketPayment) {
-                handleTicketConfirmed(payment, dataId);
-            } else {
-                handleBalanceConfirmed(payment, dataId);
-            }
+        boolean approved = APPROVED_STATUS.equals(payment.status());
+        if (!approved && !TERMINAL_FAILED_STATUSES.contains(payment.status())) {
+            log.info("Pago {} todavia no es terminal (status={}), se espera otra notificacion", dataId, payment.status());
             return;
         }
 
-        if (TERMINAL_FAILED_STATUSES.contains(payment.status())) {
-            if (isTicketPayment) {
+        String paymentKey = payment.id() != null ? String.valueOf(payment.id()) : dataId;
+        if (!paymentDeduplicator.markIfFirst(paymentKey, payment.status())) {
+            log.info("Pago {} (status={}) ya fue procesado, se ignora la notificacion duplicada", paymentKey, payment.status());
+            return;
+        }
+
+        try {
+            boolean isTicketPayment = TICKET_DOMAIN.equals(payment.metadata().get(DOMAIN_METADATA_KEY));
+            if (approved) {
+                if (isTicketPayment) {
+                    handleTicketConfirmed(payment, dataId);
+                } else {
+                    handleBalanceConfirmed(payment, dataId);
+                }
+            } else if (isTicketPayment) {
                 handleTicketFailed(payment, dataId);
             } else {
                 handleBalanceFailed(payment, dataId);
             }
-            return;
+        } catch (RuntimeException e) {
+            paymentDeduplicator.release(paymentKey, payment.status());
+            throw e;
         }
-
-        log.info("Pago {} todavia no es terminal (status={}), se espera otra notificacion", dataId, payment.status());
     }
 
     private void handleBalanceConfirmed(PaymentResponse payment, String dataId) {
