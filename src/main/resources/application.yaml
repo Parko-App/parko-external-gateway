@@ -28,6 +28,5 @@ mercadopago:
   webhook-max-age: ${MERCADOPAGO_WEBHOOK_MAX_AGE:PT24H}
 
 ngrok:
-  # El dominio parko.ngrok-free.dev lo usa access-service para el QR de pago de visitantes.
   enabled: ${NGROK_ENABLED:false}
   domain: ${NGROK_DOMAIN:parko.ngrok-free.dev}
