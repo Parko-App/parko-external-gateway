@@ -29,5 +29,6 @@ mercadopago:
 
 ngrok:
   # El dominio parko.ngrok-free.dev lo usa access-service para el QR de pago de visitantes.
+  # Para probar en local el webhook de Mercado Pago junto con ese QR, ver dev-tunnel/README.md.
   enabled: ${NGROK_ENABLED:false}
   domain: ${NGROK_DOMAIN:parko.ngrok-free.dev}
