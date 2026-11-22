@@ -1,0 +1,26 @@
+# Proxy de desarrollo que va delante del túnel de ngrok.
+#
+# Un dominio de ngrok solo reenvía a un destino, pero en local hacen falta dos rutas públicas:
+#   - /webhooks/mercadopago                  -> external-gateway (:8085): Mercado Pago avisa acá que un pago se acreditó.
+#   - /api/v1/access/sessions/<id>/pay       -> access-service (:8081): el QR del ticket de un visitante.
+# Todo lo demás responde 404: no se expone el resto de la API de access-service a internet.
+#
+# Los servicios corren en el host, por eso se llegan por host.docker.internal.
+:80 {
+	# Un renglón por pedido (ruta y estado): sirve para ver si llegó el aviso de Mercado Pago. docker logs parko-dev-proxy
+	log
+
+	@webhook path /webhooks/mercadopago
+	handle @webhook {
+		reverse_proxy host.docker.internal:8085
+	}
+
+	@pay path_regexp pay ^/api/v1/access/sessions/[0-9a-fA-F-]{36}/pay$
+	handle @pay {
+		reverse_proxy host.docker.internal:8081
+	}
+
+	handle {
+		respond "No encontrado" 404
+	}
+}

@@ -1,0 +1,28 @@
+# Túnel público para probar en local el pago de tickets y las cargas de saldo con Mercado Pago.
+# Ver README.md de esta carpeta.
+#
+#   Internet -> ngrok (NGROK_DOMAIN) -> caddy -> external-gateway (:8085)  /webhooks/mercadopago
+#                                             -> access-service   (:8081)  /api/v1/access/sessions/<id>/pay
+#
+# Variables (del entorno o de un .env en esta carpeta, que no se versiona):
+#   NGROK_AUTHTOKEN  token de la cuenta de ngrok
+#   NGROK_DOMAIN     dominio reservado en esa cuenta, sin https:// (ej.: algo.ngrok-free.dev)
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: parko-dev-proxy
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: parko-dev-ngrok
+    restart: unless-stopped
+    depends_on:
+      - caddy
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Falta NGROK_AUTHTOKEN}
+    command: ["http", "--url=https://${NGROK_DOMAIN:?Falta NGROK_DOMAIN}", "caddy:80"]
